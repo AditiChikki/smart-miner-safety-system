@@ -8,11 +8,16 @@ import random
 n_samples = 100000
 
 gas_limits = {
-    'CH4': {'safe': (0, 1000), 'ltel': (1000, 5000), 'stel': (5000, 50000)},
+    'CO': {'safe': (0, 50), 'ltel': (50, 100), 'stel': (100, 500)},
     'CO2': {'safe': (0, 5000), 'ltel': (5000, 7500), 'stel': (7500, 30000)},
-    'SO2': {'safe': (0, 0.25), 'ltel': (0.25, 2), 'stel': (2, 5)},
+    'H2S': {'safe': (0, 10), 'ltel': (10, 50), 'stel': (50, 100)},
     'NH3': {'safe': (0, 25), 'ltel': (25, 30), 'stel': (30, 35)}
 }
+
+# Define ranges for ECG intervals
+low_pr_range = (80, 120)
+low_qt_range = (300, 350)
+low_st_range = (60, 80)
 
 normal_pr_range = (120, 200)
 normal_qt_range = (350, 450)
@@ -55,9 +60,15 @@ def generate_ecg_intervals(row):
     max_severity = row['GasExposureFlag']
 
     if max_severity == 0:
-        pr = np.random.uniform(*normal_pr_range)
-        qt = np.random.uniform(*normal_qt_range)
-        st = np.random.uniform(*normal_st_range)
+        # Randomly assign low values in 5% of cases
+        if random.random() < 0.05:
+            pr = np.random.uniform(*low_pr_range)
+            qt = np.random.uniform(*low_qt_range)
+            st = np.random.uniform(*low_st_range)
+        else:
+            pr = np.random.uniform(*normal_pr_range)
+            qt = np.random.uniform(*normal_qt_range)
+            st = np.random.uniform(*normal_st_range)
     elif max_severity == 1:
         pr = np.random.uniform(*elevated_pr_range)
         qt = np.random.uniform(*elevated_qt_range)
@@ -74,6 +85,8 @@ def flag_cardiac_abnormalities(row):
         return 2 if random.random() < 0.85 else 1  # 85% chance for severe abnormality
     elif row['GasExposureFlag'] == 1:
         return 1 if random.random() < 0.6 else 0  # 60% chance for moderate abnormality
+    elif row['PR'] < low_pr_range[1] or row['QT'] < low_qt_range[1] or row['ST'] < low_st_range[1]:
+        return 2 if random.random() < 0.9 else 1  # Low values have 70% moderate, 30% severe abnormality
     return 0
 
 def determine_stress_level(row):
@@ -81,6 +94,8 @@ def determine_stress_level(row):
         return 'high'
     elif row['GasExposureFlag'] == 2 or row['CardiacAbnormalityFlag'] == 2:
         return 'high' if random.random() < 0.75 else 'moderate'
+    elif row['CardiacAbnormalityFlag'] == 1:
+        return 'moderate'
     return 'low'
 
 df['GasExposureFlag'] = df.apply(flag_gas_exposure, axis=1)
@@ -90,7 +105,7 @@ df['CardiacAbnormalityFlag'] = df.apply(flag_cardiac_abnormalities, axis=1)
 df['StressLevel'] = df.apply(determine_stress_level, axis=1)
 
 drive.mount('/content/drive')
-save_path = '/content/drive/My Drive/AAAworker_protection_data_with_flags.csv'
+save_path = '/content/drive/My Drive/RRRworker_protection_data_with_flags.csv'
 df.to_csv(save_path, index=False)
 
 print(f"File saved to: {save_path}")
